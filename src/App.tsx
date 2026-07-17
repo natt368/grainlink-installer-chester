@@ -499,18 +499,31 @@ export default function App() {
           const cSnr = await lteService.getCharacteristic(CHESTER_LTE_SNR_CHAR_UUID);
           const cNet = await lteService.getCharacteristic(CHESTER_LTE_NET_CHAR_UUID);
 
+          // Force pairing verification/handshake by performing a secure read.
+          // If password pairing fails, is cancelled, or times out, this throws an exception.
+          appendLog('', '🔒 Authenticating BLE connection security...', false);
+          await cAttached.readValue();
+
           gattCharacteristicsRef.current.lteAttached = cAttached;
           gattCharacteristicsRef.current.lteRsrp = cRsrp;
           gattCharacteristicsRef.current.lteRsrq = cRsrq;
           gattCharacteristicsRef.current.lteSnr = cSnr;
           gattCharacteristicsRef.current.lteNet = cNet;
 
-          appendLog('', '✔ Chester LTE Status GATT Service bound.', false);
+          appendLog('', '✔ Chester LTE Status GATT Service bound and authenticated.', false);
           gattServicesFound = true;
         }
       } catch (e: any) {
-        console.warn('LTE Status GATT service not available:', e);
-        appendLog('', 'LTE Status GATT Service not found on this firmware. Falling back to CLI emulation.', false);
+        console.warn('LTE Status GATT service authentication failed:', e);
+        const errStr = (e.message || '').toLowerCase();
+        if (e.name === 'SecurityError' || errStr.includes('security') || errStr.includes('authentication') || errStr.includes('pairing') || errStr.includes('insufficient') || errStr.includes('denied')) {
+          appendLog('', '❌ Security Error: Bluetooth pairing or password verification was rejected.', false);
+          try {
+            device.gatt?.disconnect();
+          } catch (disErr) {}
+          throw new Error('Pairing failed: Correct Bluetooth password is required.');
+        }
+        appendLog('', 'LTE Status GATT Service not found or restricted. Falling back to CLI emulation.', false);
       }
 
       try {
@@ -522,6 +535,12 @@ export default function App() {
           const cTriggerScan = await chService.getCharacteristic(CHESTER_CH_TRIGGER_SCAN_CHAR_UUID);
           const cValues = await chService.getCharacteristic(CHESTER_CH_VALUES_CHAR_UUID);
 
+          // Perform another verification read if not done yet
+          if (!gattServicesFound) {
+            appendLog('', '🔒 Verifying secure channels access...', false);
+            await cDevCount.readValue();
+          }
+
           gattCharacteristicsRef.current.chDevCount = cDevCount;
           gattCharacteristicsRef.current.chStatus = cStatus;
           gattCharacteristicsRef.current.chTriggerScan = cTriggerScan;
@@ -531,8 +550,16 @@ export default function App() {
           gattServicesFound = true;
         }
       } catch (e: any) {
-        console.warn('Channels GATT service not available:', e);
-        appendLog('', 'Channels GATT Service not found on this firmware. Falling back to CLI emulation.', false);
+        console.warn('Channels GATT service authentication failed:', e);
+        const errStr = (e.message || '').toLowerCase();
+        if (e.name === 'SecurityError' || errStr.includes('security') || errStr.includes('authentication') || errStr.includes('pairing') || errStr.includes('insufficient') || errStr.includes('denied')) {
+          appendLog('', '❌ Security Error: Bluetooth pairing or password verification was rejected.', false);
+          try {
+            device.gatt?.disconnect();
+          } catch (disErr) {}
+          throw new Error('Pairing failed: Correct Bluetooth password is required.');
+        }
+        appendLog('', 'Channels GATT Service not found or restricted. Falling back to CLI emulation.', false);
       }
 
       setGattServicesAvailable(gattServicesFound);

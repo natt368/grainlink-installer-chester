@@ -78,8 +78,51 @@ export default function CommandPanel({
   // Background scanning state
   const [isScanningBackground, setIsScanningBackground] = useState<boolean>(false);
   const [hasScannedAtLeastOnce, setHasScannedAtLeastOnce] = useState<boolean>(false);
+  const [scanProgress, setScanProgress] = useState<number>(0);
+  const [showProgressUI, setShowProgressUI] = useState<boolean>(false);
 
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Monitor terminal logs and real mode state to track scan progress nicely
+  useEffect(() => {
+    if (isScanningBackground) {
+      setShowProgressUI(true);
+      
+      // Try to parse percentage from terminal logs (perfect for high-fidelity CLI emulator)
+      const latestLogs = getLatestScanLogs();
+      const percentMatch = latestLogs.match(/Progress:\s*\[.*?\]\s*(\d+)%/i);
+      
+      if (percentMatch) {
+        const parsedPercent = parseInt(percentMatch[1], 10);
+        setScanProgress(parsedPercent);
+      } else {
+        // Fallback smooth animation over 1500ms (ideal for real GATT mode or initial simulator state)
+        const startTime = Date.now();
+        const duration = 1500;
+        
+        const progressTimer = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          const ratio = Math.min(elapsed / duration, 0.99);
+          setScanProgress((prev) => {
+            const simulatedProgress = Math.round(ratio * 100);
+            return Math.max(prev, simulatedProgress);
+          });
+        }, 30);
+        
+        return () => clearInterval(progressTimer);
+      }
+    } else {
+      // When scan terminates, complete progress bar to 100%, then hide after a small delay
+      if (showProgressUI) {
+        setScanProgress(100);
+        const hideTimer = setTimeout(() => {
+          setShowProgressUI(false);
+          setScanProgress(0);
+        }, 800);
+        return () => clearTimeout(hideTimer);
+      }
+    }
+  }, [terminalLogs, isScanningBackground, showProgressUI]);
 
   // Monitor terminal logs to detect actual completed scan sequence
   useEffect(() => {
@@ -933,6 +976,34 @@ END OF INSTALLATION REPORT
                     )}
                   </button>
                 </div>
+
+                {/* Smooth Progress Bar below Action Bar */}
+                {showProgressUI && (
+                  <div className="bg-zinc-50 border border-zinc-100 rounded-2xl p-4 space-y-2.5 animate-fade-in shrink-0">
+                    <div className="flex items-center justify-between text-[10px] font-sans font-black uppercase tracking-wider text-zinc-500">
+                      <span className="flex items-center gap-1.5 text-zinc-700">
+                        {scanProgress < 100 ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500 shrink-0" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        )}
+                        <span>{scanProgress < 100 ? "Scanning Channels..." : "Scan Complete"}</span>
+                      </span>
+                      <span className="font-mono text-zinc-900 font-extrabold">{scanProgress}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-zinc-200/60 rounded-full overflow-hidden relative border border-zinc-200/30">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ease-out ${scanProgress === 100 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                        style={{ width: `${scanProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-zinc-400 font-medium leading-normal">
+                      {scanProgress < 100 
+                        ? "Chester is actively querying 1-Wire sensor mappings."
+                        : "Channel states updated successfully."}
+                    </p>
+                  </div>
+                )}
 
                 {!hasScannedAtLeastOnce && !(mode === 'real' && channels && channels.length > 0) ? (
                   <div className="bg-amber-50/75 border border-amber-200 rounded-2xl p-5 space-y-4 text-center">

@@ -162,6 +162,12 @@ export default function ScanList({
                 <span>Scan for Chesters</span>
               </button>
 
+              <div className="bg-zinc-50 border border-zinc-100 rounded-2xl p-4 text-center mt-3">
+                <p className="text-[11px] text-zinc-500 font-medium leading-relaxed">
+                  🔑 <strong className="text-zinc-700 font-bold">Bluetooth password</strong> can be retrieved by scanning the QR code inside the Chester lid.
+                </p>
+              </div>
+
             </div>
 
           </div>
