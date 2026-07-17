@@ -312,6 +312,104 @@ export default function CommandPanel({
   };
 
   const parseLteState = () => {
+    const raw = getLatestLteLogs();
+    
+    // 1. Prioritize raw UART logs if we have them (even in real mode), because the 
+    // physical terminal console contains the absolute, active ground-truth direct from Zephyr RTOS shell.
+    if (raw) {
+      let isAttached = true;
+      let registration = 'registered roaming';
+      let lteMode = 'lte-m';
+      let rsrp = -84;
+      let rsrq = -9;
+      let snr = 13;
+      let band = 12;
+      let ecl = 0;
+      
+      const attachedMatch = raw.match(/attached:\s*(\w+)/i);
+      if (attachedMatch) {
+        isAttached = attachedMatch[1].toLowerCase() === 'yes';
+      }
+      
+      const ceregMatch = raw.match(/cereg:\s*([^\r\n]+)/i);
+      if (ceregMatch) {
+        registration = ceregMatch[1].trim();
+      }
+      
+      const modeMatch = raw.match(/mode:\s*([^\r\n]+)/i);
+      if (modeMatch) {
+        lteMode = modeMatch[1].trim();
+      }
+      
+      const rsrpMatch = raw.match(/rsrp:\s*([-\d]+)/i);
+      if (rsrpMatch) {
+        rsrp = parseInt(rsrpMatch[1], 10);
+      }
+      
+      const rsrqMatch = raw.match(/rsrq:\s*([-\d]+)/i);
+      if (rsrqMatch) {
+        rsrq = parseInt(rsrqMatch[1], 10);
+      }
+      
+      const snrMatch = raw.match(/snr:\s*([-\d]+)/i);
+      if (snrMatch) {
+        snr = parseInt(snrMatch[1], 10);
+      }
+      
+      const bandMatch = raw.match(/band:\s*([-\d]+)/i);
+      if (bandMatch) {
+        band = parseInt(bandMatch[1], 10);
+      }
+      
+      const eclMatch = raw.match(/ecl:\s*([-\d]+)/i);
+      if (eclMatch) {
+        ecl = parseInt(eclMatch[1], 10);
+      }
+
+      const onlineStatus = isAttached ? `Online (${registration})` : 'Offline / Disconnected';
+      
+      let rsrpDesc = 'Excellent';
+      if (rsrp <= -110) rsrpDesc = 'Poor / Marginal';
+      else if (rsrp <= -100) rsrpDesc = 'Weak';
+      else if (rsrp <= -90) rsrpDesc = 'Fair';
+      else if (rsrp <= -80) rsrpDesc = 'Good';
+      
+      const signalStrengthText = isAttached ? `${rsrpDesc} (${rsrp} dBm)` : 'No Signal (Offline)';
+      
+      let rsrqDesc = 'Excellent';
+      if (rsrq <= -15) rsrqDesc = 'Poor';
+      else if (rsrq <= -10) rsrqDesc = 'Fair';
+      else if (rsrq <= -5) rsrqDesc = 'Good';
+      const signalQualityText = isAttached ? `${rsrqDesc} (${rsrq} dB)` : 'N/A (Offline)';
+      
+      let snrDesc = 'Excellent';
+      if (snr < 0) snrDesc = 'Noisy / Interrupted';
+      else if (snr < 5) snrDesc = 'Weak';
+      else if (snr < 12) snrDesc = 'Acceptable / Good';
+      const noiseRatioText = isAttached ? `${snrDesc} (${snr} dB)` : 'N/A (Offline)';
+      
+      const technology = isAttached ? (lteMode.toUpperCase() === 'LTE-M' ? 'LTE-M (Low-Power IoT)' : lteMode) : 'None (Offline)';
+      const bandText = isAttached ? `Band ${band} (Rural Long-Range)` : 'N/A';
+      const coverageLevel = isAttached ? (ecl === 0 ? 'Optimal (ECL 0)' : `Extended Coverage (ECL ${ecl})`) : 'N/A';
+
+      return {
+        isOnline: isAttached,
+        onlineStatus,
+        signalStrengthText,
+        signalQualityText,
+        noiseRatioText,
+        technology,
+        bandText,
+        coverageLevel,
+        rsrp,
+        rsrq,
+        snr,
+        band,
+        ecl
+      };
+    }
+
+    // 2. Fallback to direct GATT services telemetry if available
     if (mode === 'real' && lte) {
       const isAttached = lte.state === 'Connected';
       const registration = lte.state === 'Connected' ? 'registered' : 'searching';
@@ -363,105 +461,24 @@ export default function CommandPanel({
       };
     }
 
-    const raw = getLatestLteLogs();
-    
-    // Default fallback values
-    let isAttached = true;
-    let registration = 'registered roaming';
-    let lteMode = 'lte-m';
-    let rsrp = -84;
-    let rsrq = -9;
-    let snr = 13;
-    let band = 12;
-    let ecl = 0;
-    
-    if (raw) {
-      // attached: yes
-      const attachedMatch = raw.match(/attached:\s*(\w+)/i);
-      if (attachedMatch) {
-        isAttached = attachedMatch[1].toLowerCase() === 'yes';
-      }
-      
-      // cereg: registered roaming
-      const ceregMatch = raw.match(/cereg:\s*([^\r\n]+)/i);
-      if (ceregMatch) {
-        registration = ceregMatch[1].trim();
-      }
-      
-      // mode: lte-m
-      const modeMatch = raw.match(/mode:\s*([^\r\n]+)/i);
-      if (modeMatch) {
-        lteMode = modeMatch[1].trim();
-      }
-      
-      // rsrp: -101
-      const rsrpMatch = raw.match(/rsrp:\s*([-\d]+)/i);
-      if (rsrpMatch) {
-        rsrp = parseInt(rsrpMatch[1], 10);
-      }
-      
-      // rsrq: -9
-      const rsrqMatch = raw.match(/rsrq:\s*([-\d]+)/i);
-      if (rsrqMatch) {
-        rsrq = parseInt(rsrqMatch[1], 10);
-      }
-      
-      // snr: 13
-      const snrMatch = raw.match(/snr:\s*([-\d]+)/i);
-      if (snrMatch) {
-        snr = parseInt(snrMatch[1], 10);
-      }
-      
-      // band: 12
-      const bandMatch = raw.match(/band:\s*([-\d]+)/i);
-      if (bandMatch) {
-        band = parseInt(bandMatch[1], 10);
-      }
-      
-      // ecl: 0
-      const eclMatch = raw.match(/ecl:\s*([-\d]+)/i);
-      if (eclMatch) {
-        ecl = parseInt(eclMatch[1], 10);
-      }
-    }
-    
-    // Convert to human-friendly simple language descriptions
-    const onlineStatus = isAttached ? `Online (${registration})` : 'Offline / Disconnected';
-    
-    // RSRP: Signal strength interpretation (standard cellular ranges)
-    let rsrpDesc = 'Excellent';
-    if (rsrp <= -110) rsrpDesc = 'Poor / Marginal';
-    else if (rsrp <= -100) rsrpDesc = 'Weak';
-    else if (rsrp <= -90) rsrpDesc = 'Fair';
-    else if (rsrp <= -80) rsrpDesc = 'Good';
-    
-    const signalStrengthText = isAttached ? `${rsrpDesc} (${rsrp} dBm)` : 'No Signal (Offline)';
-    
-    // RSRQ: Signal quality interpretation
-    let rsrqDesc = 'Excellent';
-    if (rsrq <= -15) rsrqDesc = 'Poor';
-    else if (rsrq <= -10) rsrqDesc = 'Fair';
-    else if (rsrq <= -5) rsrqDesc = 'Good';
-    const signalQualityText = isAttached ? `${rsrqDesc} (${rsrq} dB)` : 'N/A (Offline)';
-    
-    // SNR: Signal-to-noise ratio
-    let snrDesc = 'Excellent';
-    if (snr < 0) snrDesc = 'Noisy / Interrupted';
-    else if (snr < 5) snrDesc = 'Weak';
-    else if (snr < 12) snrDesc = 'Acceptable / Good';
-    const noiseRatioText = isAttached ? `${snrDesc} (${snr} dB)` : 'N/A (Offline)';
-    
-    // Tech mode
-    const technology = isAttached ? (lteMode.toUpperCase() === 'LTE-M' ? 'LTE-M (Low-Power IoT)' : lteMode) : 'None (Offline)';
-    
-    // Operating Band
-    const bandText = isAttached ? `Band ${band} (Rural Long-Range)` : 'N/A';
-    
-    // Coverage Enhancement Level
-    const coverageLevel = isAttached ? (ecl === 0 ? 'Optimal (ECL 0)' : `Extended Coverage (ECL ${ecl})`) : 'N/A';
+    // 3. Fallback to default Offline (real mode) or Online (simulated default mode)
+    const defaultOnline = mode === 'simulator';
+    const rsrp = defaultOnline ? -84 : -140;
+    const rsrq = defaultOnline ? -9 : -25;
+    const snr = defaultOnline ? 13 : -10;
+    const band = 12;
+    const ecl = defaultOnline ? 0 : 2;
+
+    const onlineStatus = defaultOnline ? 'Online (registered roaming)' : 'Offline / Disconnected';
+    const signalStrengthText = defaultOnline ? `Excellent (-84 dBm)` : 'No Signal (Offline)';
+    const signalQualityText = defaultOnline ? `Excellent (-9 dB)` : 'N/A (Offline)';
+    const noiseRatioText = defaultOnline ? `Excellent (13 dB)` : 'N/A (Offline)';
+    const technology = defaultOnline ? 'LTE-M (Low-Power IoT)' : 'None (Offline)';
+    const bandText = defaultOnline ? `Band 12 (Rural Long-Range)` : 'N/A';
+    const coverageLevel = defaultOnline ? 'Optimal (ECL 0)' : 'N/A';
 
     return {
-      isOnline: isAttached,
+      isOnline: defaultOnline,
       onlineStatus,
       signalStrengthText,
       signalQualityText,

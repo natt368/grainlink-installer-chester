@@ -206,13 +206,13 @@ export default function App() {
 
     // 1. Fetch LTE Status
     try {
-      let isAttached = true;
-      let rsrp = -84;
-      let rsrq = -9;
-      let snr = 13;
-      let carrier = 'Verizon (Agri-Net)';
-      let apn = 'm2m.grainlink.iot';
-      let state: 'Connected' | 'Disconnected' = 'Connected';
+      let isAttached = false;
+      let rsrp = -140;
+      let rsrq = -25;
+      let snr = -10;
+      let carrier = 'None';
+      let apn = 'none';
+      let state: 'Connected' | 'Disconnected' = 'Disconnected';
 
       if (chars.lteAttached) {
         try {
@@ -1005,7 +1005,7 @@ Type "help" to list valid installer commands.`;
               <CommandPanel
                 onRunCommand={handleSendCommand}
                 channels={mode === 'real' && realChannels ? realChannels : getSimulatedChannels()}
-                lte={mode === 'real' && realLteStatus ? realLteStatus : getSimulatedLte()}
+                lte={mode === 'real' ? (realLteStatus || { state: 'Disconnected', operator: 'None', rsrp: -140, rsrq: -25, ipAddress: '0.0.0.0', apn: 'none', ready: false, synced: false }) : getSimulatedLte()}
                 batteryVoltage={batteryVoltage}
                 batteryPercent={batteryPercent}
                 config={config}
