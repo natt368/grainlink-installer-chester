@@ -1269,8 +1269,9 @@ lte config modemtrace ${chesterConfig.lte_modemtrace}`;
           className="w-full bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-black rounded-2xl p-4 flex items-center justify-between text-left transition-all hover:shadow-xs cursor-pointer active:scale-[0.99] disabled:opacity-50"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-zinc-100 border border-zinc-200 shadow-xs flex items-center justify-center shrink-0">
-              <Wifi className="w-5 h-5 text-black" />
+            <div className="p-3 rounded-xl bg-zinc-100 border border-zinc-200 shadow-xs flex items-center justify-center shrink-0 relative">
+              <Signal className="w-5 h-5 text-black" />
+              <span className="absolute -bottom-1 -right-1 text-[7px] font-black bg-black text-white px-0.5 rounded-xs border border-white uppercase leading-none">LTE</span>
             </div>
             <div>
               <h3 className="font-sans font-black text-xs uppercase tracking-wider text-black">Chester Connectivity</h3>
