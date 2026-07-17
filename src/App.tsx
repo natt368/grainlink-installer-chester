@@ -894,7 +894,7 @@ Type "help" to list valid installer commands.`;
       onOpenInNewTab={handleOpenInNewTab}
       isIframe={isIframe}
     >
-      <div className="h-full min-h-[815px] flex flex-col bg-zinc-50">
+      <div className="flex-1 flex flex-col bg-zinc-50">
         {connectionState !== 'connected' ? (
           <ScanList
             connectionState={connectionState}
