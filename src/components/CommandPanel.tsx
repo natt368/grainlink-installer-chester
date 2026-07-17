@@ -20,7 +20,8 @@ import {
   Play,
   Cloud,
   Check,
-  Sliders
+  Sliders,
+  Info
 } from 'lucide-react';
 
 interface CommandPanelProps {
@@ -849,6 +850,17 @@ END OF INSTALLATION REPORT
             {/* CHANNELS SCREEN (GETS CURRENT REPORT) */}
             {activeAction === 'channels' && (
               <div className="space-y-4">
+                {/* Installer Tip Banner */}
+                <div className="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex items-start gap-3 animate-fade-in">
+                  <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-sans font-black text-blue-900 uppercase tracking-wider block">Installer Notice</span>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed font-medium">
+                      Initiate a <strong className="font-bold text-blue-900">SCAN</strong> to show new sensors in the channel list.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Unified Compact Action Bar */}
                 <div className="grid grid-cols-3 gap-2 bg-white border border-zinc-100 rounded-2xl p-1.5 shadow-xs animate-fade-in">
                   {/* Scan Button */}

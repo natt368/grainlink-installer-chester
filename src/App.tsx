@@ -101,7 +101,26 @@ export default function App() {
   const [terminalLogs, setTerminalLogs] = useState<CommandLog[]>([]);
 
   // Check if iframe
-  const [isIframe, setIsIframe] = useState(true);
+  const [isIframe, setIsIframe] = useState(() => {
+    try {
+      if (typeof window === 'undefined') return true;
+      const inIframe = window.self !== window.top;
+      if (!inIframe) return false;
+      
+      // If we are in an iframe, let's check if the ancestor is actually AI Studio or Google
+      if ((window.location as any).ancestorOrigins) {
+        const ancestors = Array.from((window.location as any).ancestorOrigins);
+        const hasGoogleAncestor = ancestors.some((origin: any) => 
+          typeof origin === 'string' && 
+          (origin.includes('ai.studio') || origin.includes('google.com'))
+        );
+        return hasGoogleAncestor;
+      }
+      return true;
+    } catch (e) {
+      return true;
+    }
+  });
 
   // Toggle for developer CLI
   const [showTerminal, setShowTerminal] = useState(false);
@@ -110,7 +129,19 @@ export default function App() {
   useEffect(() => {
     // Check if running in iframe
     try {
-      setIsIframe(window.self !== window.top);
+      const inIframe = window.self !== window.top;
+      if (!inIframe) {
+        setIsIframe(false);
+      } else if ((window.location as any).ancestorOrigins) {
+        const ancestors = Array.from((window.location as any).ancestorOrigins);
+        const hasGoogleAncestor = ancestors.some((origin: any) => 
+          typeof origin === 'string' && 
+          (origin.includes('ai.studio') || origin.includes('google.com'))
+        );
+        setIsIframe(hasGoogleAncestor);
+      } else {
+        setIsIframe(true);
+      }
     } catch (e) {
       setIsIframe(true);
     }

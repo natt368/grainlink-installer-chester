@@ -7,7 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Bluetooth, 
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { ChesterDevice, ConnectionState, ConnectionMode } from '../types';
 
@@ -33,6 +34,7 @@ export default function ScanList({
   isIframe
 }: ScanListProps) {
 
+  const [dismissedIframeWarning, setDismissedIframeWarning] = useState(false);
 
   const isBluetoothSupported = typeof navigator !== 'undefined' && !!(navigator as any).bluetooth;
 
@@ -66,9 +68,16 @@ export default function ScanList({
       </div>
 
       {/* Warning Alert if nested in Iframe (which browser blocks BLE inside) */}
-      {isIframe && (
-        <div className="bg-amber-50 border-b border-amber-150 px-6 py-4.5 select-none animate-fade-in shrink-0">
-          <div className="flex items-start gap-3">
+      {isIframe && !dismissedIframeWarning && (
+        <div className="bg-amber-50 border-b border-amber-150 px-6 py-4.5 select-none animate-fade-in shrink-0 relative">
+          <button 
+            onClick={() => setDismissedIframeWarning(true)}
+            className="absolute top-3.5 right-4.5 p-1 text-amber-500 hover:text-amber-800 rounded-lg hover:bg-amber-100/50 transition-all cursor-pointer"
+            aria-label="Dismiss warning"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex items-start gap-3 pr-6">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-2">
               <h4 className="font-sans font-extrabold text-xs text-amber-900 leading-tight">
