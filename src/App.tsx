@@ -799,19 +799,25 @@ export default function App() {
       return;
     } 
     else if (cmd === 'lte state') {
-      reply = `attached: ${mockLteAttached ? 'yes' : 'no'}
-cereg: ${mockLteAttached ? 'registered roaming' : 'searching'}
+      const isLteConnected = mode === 'real' ? (realLteStatus ? realLteStatus.state === 'Connected' : false) : mockLteAttached;
+      const lteRsrpVal = mode === 'real' ? (realLteStatus ? realLteStatus.rsrp : -140) : (mockLteAttached ? mockLteSignal : -140);
+      const lteRsrqVal = mode === 'real' ? (realLteStatus ? realLteStatus.rsrq : -25) : (mockLteAttached ? -9 : -20);
+      const lteSnrVal = isLteConnected ? 13 : -10;
+      const lteOperatorVal = mode === 'real' ? (realLteStatus ? realLteStatus.operator : 'None') : (mockLteAttached ? 'Verizon (Agri-Net)' : 'None');
+
+      reply = `attached: ${isLteConnected ? 'yes' : 'no'}
+cereg: ${isLteConnected ? (lteOperatorVal.includes('Verizon') || lteOperatorVal.includes('Agri-Net') ? 'registered roaming' : 'registered') : 'searching'}
 mode: lte-m
-eest: ${mockLteAttached ? '7' : '0'}
-ecl: ${mockLteAttached ? '0' : '2'}
-rsrp: ${mockLteAttached ? mockLteSignal : -140}
-rsrq: ${mockLteAttached ? -9 : -20}
-snr: ${mockLteAttached ? 13 : -10}
-plmn: ${mockLteAttached ? '302610' : '000000'}
-cid: ${mockLteAttached ? '29019660' : '0'}
-band: ${mockLteAttached ? '12' : '0'}
-earfcn: ${mockLteAttached ? '5145' : '0'}
-state: ${mockLteAttached ? 'gnss' : 'off'}
+eest: ${isLteConnected ? '7' : '0'}
+ecl: ${isLteConnected ? '0' : '2'}
+rsrp: ${lteRsrpVal}
+rsrq: ${lteRsrqVal}
+snr: ${lteSnrVal}
+plmn: ${isLteConnected ? '302610' : '000000'}
+cid: ${isLteConnected ? '29019660' : '0'}
+band: 12
+earfcn: ${isLteConnected ? '5145' : '0'}
+state: ${isLteConnected ? 'gnss' : 'off'}
 command succeeded`;
     } 
     else if (cmd === 'system') {
@@ -837,16 +843,20 @@ time since send     : 2793
 Cloud initialized   : 1`;
     }
     else if (cmd === 'config show') {
+      const isLteConnected = mode === 'real' ? (realLteStatus ? realLteStatus.state === 'Connected' : false) : mockLteAttached;
+      const lteApnVal = mode === 'real' ? (realLteStatus ? realLteStatus.apn : 'none') : (mockLteAttached ? 'm2m.grainlink.iot' : 'none');
+      const lteTechVal = isLteConnected ? 'LTE-M' : 'None (Offline - No SIM)';
+
       reply = `==================================================
 GRAINLINK CHESTER CURRENT SYSTEM CONFIGURATION
 ==================================================
-device.id        : 2161112345
-device.installer : Nat (nat@grainlink.com)
-bin.id           : 2161112345
+device.id        : ${config.binId || '2161112345'}
+device.installer : ${config.installerName || 'Nat'} (${config.phoneNumber || 'nat@grainlink.com'})
+bin.id           : ${config.binId || '2161112345'}
 bin.cable_type   : DS18B20 1-Wire
 bin.height_probe : 4-20mA ADC
-modem.apn        : m2m.grainlink.iot
-modem.tech       : LTE-M
+modem.apn        : ${lteApnVal}
+modem.tech       : ${lteTechVal}
 modem.interval   : 15 minutes
 power.source     : USB/Line Power
 sensors.scan_int : 5 seconds

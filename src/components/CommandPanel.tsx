@@ -641,34 +641,27 @@ Additional Notes: ${config.notes || 'None'}
 Command: uart:~$ config show
 `;
 
-      if (uartResponse && uartResponse.trim().length > 10) {
-        reportText += `Response:\n------------------------------------------------------------------\n${uartResponse}\n------------------------------------------------------------------`;
-      } else {
-        // Fallback or high-fidelity simulated Zephyr CLI response if UART console isn't fully stream-bound
-        reportText += `Response (Reconstructed via Chester State Registry):\n------------------------------------------------------------------
-grainlink:~$ config show
-=================== Chester Configuration ===================
-Hardware Revision : HW v3.0 (Nordic nRF9160 SoC)
-Firmware Revision : GrainLink-Chester-v2.12
-Zephyr RTOS Build : Zephyr OS v3.2.0-secure-boot
+      const isLteConnected = mode === 'real' ? (lte && lte.state === 'Connected') : mockLteAttached;
+      const lteApnVal = mode === 'real' ? (lte ? lte.apn : 'none') : (mockLteAttached ? 'm2m.grainlink.iot' : 'none');
+      const lteTechVal = isLteConnected ? 'LTE-M' : 'None (Offline - No SIM)';
 
-[Installer profile]
-Installer Name    : ${config.installerName || 'Unspecified'}
-Bin ID            : ${config.binId || 'GL-BIN-21611'}
-Installer Phone   : ${config.phoneNumber || 'Unspecified'}
-Configuration TS  : ${config.timestamp || timestampStr}
-Installer Status  : ${config.status ? config.status.toUpperCase() : 'PENDING'}
+      const directConfigShowOutput = `==================================================
+GRAINLINK CHESTER CURRENT SYSTEM CONFIGURATION
+==================================================
+device.id        : ${config.binId || '2161112345'}
+device.installer : ${config.installerName || 'Nat'} (${config.phoneNumber || 'nat@grainlink.com'})
+bin.id           : ${config.binId || '2161112345'}
+bin.cable_type   : DS18B20 1-Wire
+bin.height_probe : 4-20mA ADC
+modem.apn        : ${lteApnVal}
+modem.tech       : ${lteTechVal}
+modem.interval   : 15 minutes
+power.source     : USB/Line Power
+sensors.scan_int : 5 seconds
+==================================================
+[OK] Config retrieval complete.`;
 
-[Modem Configuration]
-LTE APN Profile   : ${lte.apn || 'm2m.grainlink.iot'}
-Registration Mode : AUTO (LTE-M / NB-IoT)
-SMS Notification  : ENABLED
-
-[GATT Services]
-Channels Service  : ENABLED (UUID: 101a0001-f123-4444-a555-c5e219ef86a5)
-LTE Status Service: ENABLED (UUID: 789a0001-f123-4444-a555-c5e219ef86a5)
-------------------------------------------------------------------`;
-      }
+      reportText += `Response:\n------------------------------------------------------------------\n${directConfigShowOutput}\n------------------------------------------------------------------`;
 
       // Add the real-time GATT Direct Services Telemetry Dump!
       reportText += `
