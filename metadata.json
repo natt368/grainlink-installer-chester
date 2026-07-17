@@ -1,0 +1,11 @@
+{
+  "name": "GrainLink Chester",
+  "description": "A high-contrast, mobile-friendly Bluetooth configuration tool for installers and farmers to scan, connect to GrainLink gateways on grain bins, inspect channels, read sensors, and verify LTE network connectivity.",
+  "requestFramePermissions": [
+    "bluetooth",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
