@@ -51,3 +51,31 @@ export interface ChesterDevice {
   batteryPercent: number; // e.g. 92%
   signalStrength: number; // RSSI, e.g. -72 dBm
 }
+
+export interface ChesterLiveConfig {
+  app_gnss_interval: number;
+  app_measurement_interval: number;
+  app_report_interval: number;
+  app_scan_interval: number;
+  app_poll_interval: number;
+  app_cloud_timeout: number;
+  app_powersave: boolean;
+  app_tracking_mode: boolean;
+  app_mode: string;
+  ble_passkey: string;
+  tag_enabled: boolean;
+  tag_scan_interval: number;
+  tag_scan_duration: number;
+  tag_devices_addr: number;
+  lte_test: boolean;
+  lte_antenna: string;
+  lte_mode: string;
+  lte_bands: string;
+  lte_network: string;
+  lte_apn: string;
+  lte_auth: string;
+  lte_username: string;
+  lte_password: string;
+  lte_addr: string;
+  lte_modemtrace: boolean;
+}

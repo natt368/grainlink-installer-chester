@@ -11,7 +11,8 @@ import {
   ChannelInfo, 
   LteStatus, 
   BinConfig,
-  ChesterDevice
+  ChesterDevice,
+  ChesterLiveConfig
 } from './types';
 import MobileFrame from './components/MobileFrame';
 import CommandPanel from './components/CommandPanel';
@@ -88,6 +89,53 @@ export default function App() {
     timestamp: '',
     status: 'pending',
   });
+
+  // Chester Hardware Live Configuration Parameters
+  const [chesterConfig, setChesterConfig] = useState<ChesterLiveConfig>(() => {
+    const saved = localStorage.getItem('grainlink_chester_live_config');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse chester live config', e);
+      }
+    }
+    return {
+      app_gnss_interval: 604800,
+      app_measurement_interval: 900,
+      app_report_interval: 3600,
+      app_scan_interval: 0,
+      app_poll_interval: 300,
+      app_cloud_timeout: 10800,
+      app_powersave: false,
+      app_tracking_mode: false,
+      app_mode: 'lte',
+      ble_passkey: '',
+      tag_enabled: false,
+      tag_scan_interval: 300,
+      tag_scan_duration: 12,
+      tag_devices_addr: 0,
+      lte_test: false,
+      lte_antenna: 'external',
+      lte_mode: 'off',
+      lte_bands: '',
+      lte_network: '',
+      lte_apn: '',
+      lte_auth: 'none',
+      lte_username: '',
+      lte_password: '',
+      lte_addr: '157.245.24.13',
+      lte_modemtrace: false,
+    };
+  });
+
+  const handleUpdateChesterConfig = (updates: Partial<ChesterLiveConfig>) => {
+    setChesterConfig((prev) => {
+      const next = { ...prev, ...updates };
+      localStorage.setItem('grainlink_chester_live_config', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // SMS Simulation State
   const [incomingSms, setIncomingSms] = useState<{ text: string; sender: string } | null>(null);
@@ -174,6 +222,22 @@ export default function App() {
     setConfig(next);
     localStorage.setItem('grainlink_active_config', JSON.stringify(next));
   };
+
+  const isLteConnectedPrim = mode === 'real' ? (realLteStatus ? realLteStatus.state === 'Connected' : false) : mockLteAttached;
+  const realApnPrim = realLteStatus ? realLteStatus.apn : '';
+
+  useEffect(() => {
+    setChesterConfig((prev) => {
+      const nextApn = isLteConnectedPrim ? (realApnPrim || 'iot.1nce.net') : '';
+      const nextMode = isLteConnectedPrim ? 'lte-m' : 'off';
+      if (prev.lte_mode === nextMode && prev.lte_apn === nextApn) {
+        return prev;
+      }
+      const next = { ...prev, lte_mode: nextMode, lte_apn: nextApn };
+      localStorage.setItem('grainlink_chester_live_config', JSON.stringify(next));
+      return next;
+    });
+  }, [isLteConnectedPrim, realApnPrim]);
 
   // Append a command/response block to the terminal logs
   const appendLog = (command: string, response: string, isUser: boolean = true) => {
@@ -642,10 +706,92 @@ export default function App() {
       return;
     }
 
+    const cmd = commandStr.toLowerCase().trim();
+    const configRegex = /^(app|ble|tag|lte)\s+config\s+([\w-]+)(?:\s+(.*))?$/i;
+    const match = commandStr.trim().match(configRegex);
+
+    if (match) {
+      const ns = match[1].toLowerCase();
+      const rawKey = match[2].toLowerCase();
+      let rawVal = match[3] !== undefined ? match[3].trim() : '';
+      
+      if (rawVal.startsWith('"') && rawVal.endsWith('"')) {
+        rawVal = rawVal.substring(1, rawVal.length - 1);
+      } else if (rawVal.startsWith("'") && rawVal.endsWith("'")) {
+        rawVal = rawVal.substring(1, rawVal.length - 1);
+      }
+
+      const stateKey = `${ns}_${rawKey.replace(/-/g, '_')}`;
+      let parsedVal: any = rawVal;
+      if (rawVal.toLowerCase() === 'true') {
+        parsedVal = true;
+      } else if (rawVal.toLowerCase() === 'false') {
+        parsedVal = false;
+      } else if (!isNaN(Number(rawVal)) && rawVal !== '') {
+        parsedVal = Number(rawVal);
+      }
+
+      handleUpdateChesterConfig({ [stateKey]: parsedVal });
+
+      const reply = `bt_nus:~$`;
+      appendLog(commandStr, reply, true);
+
+      if (mode === 'real' && txCharacteristic) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(commandStr + '\r\n');
+          await txCharacteristic.writeValue(data);
+        } catch (e) {
+          console.error('BLE config transmission error', e);
+        }
+      }
+      return;
+    }
+
+    if (cmd === 'config show') {
+      const reply = `app config gnss-interval ${chesterConfig.app_gnss_interval}
+app config measurement-interval ${chesterConfig.app_measurement_interval}
+app config report-interval ${chesterConfig.app_report_interval}
+app config scan-interval ${chesterConfig.app_scan_interval}
+app config poll-interval ${chesterConfig.app_poll_interval}
+app config cloud-timeout ${chesterConfig.app_cloud_timeout}
+app config powersave ${chesterConfig.app_powersave}
+app config tracking-mode ${chesterConfig.app_tracking_mode}
+app config mode ${chesterConfig.app_mode}
+ble config passkey "${chesterConfig.ble_passkey}"
+tag config enabled ${chesterConfig.tag_enabled}
+tag config scan-interval ${chesterConfig.tag_scan_interval}
+tag config scan-duration ${chesterConfig.tag_scan_duration}
+tag config devices addr ${chesterConfig.tag_devices_addr}
+lte config test ${chesterConfig.lte_test}
+lte config antenna "${chesterConfig.lte_antenna}"
+lte config mode "${chesterConfig.lte_mode}"
+lte config bands "${chesterConfig.lte_bands}"
+lte config network "${chesterConfig.lte_network}"
+lte config apn "${chesterConfig.lte_apn}"
+lte config auth "${chesterConfig.lte_auth}"
+lte config username "${chesterConfig.lte_username}"
+lte config password "${chesterConfig.lte_password}"
+lte config addr "${chesterConfig.lte_addr}"
+lte config modemtrace ${chesterConfig.lte_modemtrace}
+bt_nus:~$`;
+
+      appendLog(commandStr, reply, true);
+
+      if (mode === 'real' && txCharacteristic) {
+        try {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(commandStr + '\r\n');
+          await txCharacteristic.writeValue(data);
+        } catch (e) {
+          console.error('BLE config show transmission error', e);
+        }
+      }
+      return;
+    }
+
     // 1. If REAL mode, write actual bytes over GATT stream
     if (mode === 'real') {
-      const cmd = commandStr.toLowerCase().trim();
-      
       // Intercept and trigger GATT service operations if available
       if (gattServicesAvailable) {
         if (cmd === 'scan') {
@@ -671,7 +817,6 @@ export default function App() {
     }
 
     // 2. If SIMULATED mode, generate high-fidelity mock Zephyr Shell CLI feedback
-    const cmd = commandStr.toLowerCase().trim();
     let reply = '';
 
     if (cmd === 'help') {
@@ -841,27 +986,6 @@ button R            : 0
 button L            : 0
 time since send     : 2793
 Cloud initialized   : 1`;
-    }
-    else if (cmd === 'config show') {
-      const isLteConnected = mode === 'real' ? (realLteStatus ? realLteStatus.state === 'Connected' : false) : mockLteAttached;
-      const lteApnVal = mode === 'real' ? (realLteStatus ? realLteStatus.apn : 'none') : (mockLteAttached ? 'm2m.grainlink.iot' : 'none');
-      const lteTechVal = isLteConnected ? 'LTE-M' : 'None (Offline - No SIM)';
-
-      reply = `==================================================
-GRAINLINK CHESTER CURRENT SYSTEM CONFIGURATION
-==================================================
-device.id        : ${config.binId || '2161112345'}
-device.installer : ${config.installerName || 'Nat'} (${config.phoneNumber || 'nat@grainlink.com'})
-bin.id           : ${config.binId || '2161112345'}
-bin.cable_type   : DS18B20 1-Wire
-bin.height_probe : 4-20mA ADC
-modem.apn        : ${lteApnVal}
-modem.tech       : ${lteTechVal}
-modem.interval   : 15 minutes
-power.source     : USB/Line Power
-sensors.scan_int : 5 seconds
-==================================================
-[OK] Config retrieval complete.`;
     }
     else if (cmd === 'kernel reboot cold') {
       reply = `*** Booting Zephyr OS build v3.4.0 ***
@@ -1033,6 +1157,7 @@ Type "help" to list valid installer commands.`;
                 onSetMockLteAttached={setMockLteAttached}
                 autoPoll={autoPoll}
                 onToggleAutoPoll={() => setAutoPoll(prev => !prev)}
+                chesterConfig={chesterConfig}
               />
             </div>
           </div>

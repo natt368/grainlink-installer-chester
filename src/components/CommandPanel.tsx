@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BinConfig, ChannelInfo, LteStatus, CommandLog, ConnectionMode } from '../types';
+import { BinConfig, ChannelInfo, LteStatus, CommandLog, ConnectionMode, ChesterLiveConfig } from '../types';
 import { 
   Layers, 
   Battery, 
@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Cpu,
   Wifi,
+  Signal,
   AlertTriangle,
   Play,
   Cloud,
@@ -45,6 +46,7 @@ interface CommandPanelProps {
   onSetMockLteAttached?: (val: boolean) => void;
   autoPoll?: boolean;
   onToggleAutoPoll?: () => void;
+  chesterConfig: ChesterLiveConfig;
 }
 
 export default function CommandPanel({
@@ -67,7 +69,8 @@ export default function CommandPanel({
   mockLteAttached = true,
   onSetMockLteAttached,
   autoPoll = true,
-  onToggleAutoPoll
+  onToggleAutoPoll,
+  chesterConfig
 }: CommandPanelProps) {
   // Master states for actions & screen routing
   const [activeAction, setActiveAction] = useState<'scan' | 'channels' | 'lte' | 'battery' | 'reboot' | null>(null);
@@ -134,8 +137,8 @@ export default function CommandPanel({
         if (scanTimeoutRef.current) {
           clearTimeout(scanTimeoutRef.current);
         }
-        // Automatically switch view to the channels report
-        setActiveAction('channels');
+        // Automatically switch view to the channels report and query real-time status
+        handleChannelsClick();
       }
     }
   }, [terminalLogs, isScanningBackground]);
@@ -547,7 +550,7 @@ export default function CommandPanel({
   };
 
   // Handlers
-  const handleScanClick = () => {
+  function handleScanClick() {
     setIsScanningBackground(true);
     onRunCommand('scan');
     
@@ -559,10 +562,11 @@ export default function CommandPanel({
     scanTimeoutRef.current = setTimeout(() => {
       setIsScanningBackground(false);
       setHasScannedAtLeastOnce(true);
+      handleChannelsClick();
     }, 25000);
-  };
+  }
 
-  const handleChannelsClick = () => {
+  function handleChannelsClick() {
     setActiveAction('channels');
     setIsLoading(true);
     setLoadingText('Querying channels status (command: channels)...');
@@ -571,7 +575,7 @@ export default function CommandPanel({
     setTimeout(() => {
       setIsLoading(false);
     }, 1500);
-  };
+  }
 
   const handleLteState = () => {
     setActiveAction('lte');
@@ -603,93 +607,37 @@ export default function CommandPanel({
     setTimeout(() => {
       setIsLoading(false);
       
-      // 1. Reconstruct the real UART response received from Chester (if UART is connected)
-      // using the existing getCombinedLogsForCommand helper
-      const uartResponse = getCombinedLogsForCommand('config show', ['config', 'installer', 'bin']);
-      
-      // 2. Extract real-time values from the GATT service props
-      const gattChannelsReport = channels && channels.length > 0
-        ? channels.map(ch => {
-            const temps = ch.values && ch.values.length > 0 ? ch.values.join('°C, ') + '°C' : 'N/A';
-            return `Channel ${ch.index} (${ch.name}): ${ch.sensorCount} sensor(s) detected [Status: ${ch.status}] - Temps: [${temps}]`;
-          }).join('\n')
-        : 'No 1-Wire Channels telemetry returned over GATT.';
-
-      const gattLteReport = `Modem State: ${lte.state || 'Unknown'}
-Operator/Carrier: ${lte.operator || 'Not Registered'}
-Signal Strength (RSRP): ${lte.rsrp ? `${lte.rsrp} dBm` : 'N/A'}
-Signal Quality (RSRQ): ${lte.rsrq ? `${lte.rsrq} dB` : 'N/A'}
-IP Address Allocated: ${lte.ipAddress || 'None'}
-APN Configuration: ${lte.apn || 'm2m.grainlink.iot'}
-Network Synced: ${lte.synced ? 'YES' : 'NO'}`;
-
-      const timestampStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-
-      // Generate a detailed, highly professional composite configuration report
-      let reportText = `==================================================================
-GRAINLINK CHESTER GATEWAY - CONFIGURATION & DIAGNOSTIC REPORT
-==================================================================
-Report Generated: ${timestampStr} (UTC)
-Gateway Connection Mode: ${mode === 'real' ? 'PHYSICAL BLE GATEWAY (GATT)' : 'SIMULATED EMULATOR'}
-Installer: ${config.installerName || 'Not Set'}
-Configured Bin ID: ${config.binId || 'Not Set'}
-Configured Phone: ${config.phoneNumber || 'Not Set'}
-Additional Notes: ${config.notes || 'None'}
-==================================================================
-
-[1. ZEPHYR SHELL TERMINAL - "config show" OUTPUT]
-Command: uart:~$ config show
-`;
-
-      const isLteConnected = mode === 'real' ? (lte && lte.state === 'Connected') : mockLteAttached;
-      const lteApnVal = mode === 'real' ? (lte ? lte.apn : 'none') : (mockLteAttached ? 'm2m.grainlink.iot' : 'none');
-      const lteTechVal = isLteConnected ? 'LTE-M' : 'None (Offline - No SIM)';
-
-      const directConfigShowOutput = `==================================================
-GRAINLINK CHESTER CURRENT SYSTEM CONFIGURATION
-==================================================
-device.id        : ${config.binId || '2161112345'}
-device.installer : ${config.installerName || 'Nat'} (${config.phoneNumber || 'nat@grainlink.com'})
-bin.id           : ${config.binId || '2161112345'}
-bin.cable_type   : DS18B20 1-Wire
-bin.height_probe : 4-20mA ADC
-modem.apn        : ${lteApnVal}
-modem.tech       : ${lteTechVal}
-modem.interval   : 15 minutes
-power.source     : USB/Line Power
-sensors.scan_int : 5 seconds
-==================================================
-[OK] Config retrieval complete.`;
-
-      reportText += `Response:\n------------------------------------------------------------------\n${directConfigShowOutput}\n------------------------------------------------------------------`;
-
-      // Add the real-time GATT Direct Services Telemetry Dump!
-      reportText += `
-
-[2. PHYSICAL GATT DIRECT SERVICES TELEMETRY DUMP]
-The following parameters were read in real-time from Chester's primary
-GATT Services over secure Bluetooth Low Energy (BLE):
-
-[Power / Hardware Health Service]
-Battery Voltage: ${batteryVoltage.toFixed(2)}V
-Battery Capacity: ${batteryPercent}%
-Power Status: Optimal (Hardware Rails Active)
-
-[LTE Status Service (UUID: 789a0001)]
-${gattLteReport}
-
-[1-Wire Temperature Channels Service (UUID: 101a0001)]
-${gattChannelsReport}
-
-==================================================================
-END OF CONFIGURATION REPORT
-==================================================================`;
+      const reportText = `app config gnss-interval ${chesterConfig.app_gnss_interval}
+app config measurement-interval ${chesterConfig.app_measurement_interval}
+app config report-interval ${chesterConfig.app_report_interval}
+app config scan-interval ${chesterConfig.app_scan_interval}
+app config poll-interval ${chesterConfig.app_poll_interval}
+app config cloud-timeout ${chesterConfig.app_cloud_timeout}
+app config powersave ${chesterConfig.app_powersave}
+app config tracking-mode ${chesterConfig.app_tracking_mode}
+app config mode ${chesterConfig.app_mode}
+ble config passkey "${chesterConfig.ble_passkey}"
+tag config enabled ${chesterConfig.tag_enabled}
+tag config scan-interval ${chesterConfig.tag_scan_interval}
+tag config scan-duration ${chesterConfig.tag_scan_duration}
+tag config devices addr ${chesterConfig.tag_devices_addr}
+lte config test ${chesterConfig.lte_test}
+lte config antenna "${chesterConfig.lte_antenna}"
+lte config mode "${chesterConfig.lte_mode}"
+lte config bands "${chesterConfig.lte_bands}"
+lte config network "${chesterConfig.lte_network}"
+lte config apn "${chesterConfig.lte_apn}"
+lte config auth "${chesterConfig.lte_auth}"
+lte config username "${chesterConfig.lte_username}"
+lte config password "${chesterConfig.lte_password}"
+lte config addr "${chesterConfig.lte_addr}"
+lte config modemtrace ${chesterConfig.lte_modemtrace}`;
 
       const blob = new Blob([reportText], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `chester_config_report_${config.binId || '2161112345'}.txt`;
+      link.download = `chester_config_show_${config.binId || '2161112345'}.txt`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1136,8 +1084,9 @@ END OF CONFIGURATION REPORT
               return (
                 <div className="space-y-4">
                   <div className="text-center space-y-2">
-                    <div className="w-10 h-10 bg-black rounded-2xl flex items-center justify-center mx-auto mb-1">
-                      <Wifi className="w-5 h-5 text-white" />
+                    <div className="w-10 h-10 bg-black rounded-2xl flex items-center justify-center mx-auto mb-1 relative">
+                      <Signal className="w-5 h-5 text-white" />
+                      <span className="absolute -bottom-1 -right-1 text-[8px] font-black bg-white text-black px-1 rounded-sm border border-black uppercase leading-none">LTE</span>
                     </div>
                     <h4 className="font-sans font-black text-sm uppercase tracking-wide text-black">Cellular Report</h4>
                   </div>
