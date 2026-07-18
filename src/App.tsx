@@ -483,12 +483,18 @@ export default function App() {
           }
         : {
             filters: [
-              { namePrefix: 'CHESTER' },
-              { namePrefix: 'Chester' },
-              { namePrefix: 'chester' },
+              { namePrefix: 'CH' },
+              { namePrefix: 'Ch' },
+              { namePrefix: 'ch' },
               { namePrefix: 'GL' },
-              { namePrefix: 'GrainLink' },
-              { services: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] }
+              { namePrefix: 'Gl' },
+              { namePrefix: 'gl' },
+              { namePrefix: 'Grain' },
+              { namePrefix: 'grain' },
+              { namePrefix: 'GRAIN' },
+              { services: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] },
+              { services: [CHESTER_LTE_SERVICE_UUID] },
+              { services: [CHESTER_CHANNELS_SERVICE_UUID] }
             ],
             optionalServices: [
               '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
